@@ -67,6 +67,10 @@ export async function updateProfile(formData: FormData) {
   const fullName = (formData.get("full_name") as string)?.trim();
   const phone = (formData.get("phone") as string)?.trim();
 
+  if (!fullName) {
+    return { success: false, error: "Full name is required" };
+  }
+
   const { error } = await supabase
     .from("profiles")
     .update({
@@ -79,6 +83,40 @@ export async function updateProfile(formData: FormData) {
   if (error) return { success: false, error: error.message };
 
   revalidatePath("/account");
+  revalidatePath("/account/profile");
+  return { success: true };
+}
+
+/**
+ * Change password using the current session.
+ * Requires the user to be logged in (does not require old password).
+ */
+
+export async function changePassword(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  const password = formData.get("password") as string;
+  const confirmPassword = formData.get("confirm_password") as string;
+
+  if (!password || password.length < 6) {
+    return { success: false, error: "Password must be at least 6 characters" };
+  }
+  if (password !== confirmPassword) {
+    return { success: false, error: "Passwords do not match" };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    console.error("Password update error:", error);
+    return { success: false, error: error.message };
+  }
+
   return { success: true };
 }
 

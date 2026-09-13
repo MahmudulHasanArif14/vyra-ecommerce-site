@@ -162,6 +162,7 @@ export default function CategoryForm({ initialData }: Props) {
                 src={imageUrl}
                 alt="Category"
                 fill
+                sizes="128px"
                 className="object-cover"
               />
               <button

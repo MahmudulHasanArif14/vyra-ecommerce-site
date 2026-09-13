@@ -7,6 +7,7 @@ import { addToCart } from "@/actions/cart";
 import { trackEvent } from "@/lib/analytics/track";
 import { toast } from "sonner";
 import { Minus, Plus, Heart, ShoppingBag, Zap } from "lucide-react";
+import WishlistButton from "@/components/products/wishlist-button";
 
 export default function ProductVariantSelector({
   product,
@@ -278,6 +279,14 @@ export default function ProductVariantSelector({
             <ShoppingBag className="w-4 h-4" />
             {loading ? "ADDING..." : "ADD TO CART"}
           </button>
+
+          {/* ⭐ NEW: Real wishlist button */}
+          <div className="w-14">
+            <WishlistButton
+              productId={product.id}
+              isInWishlist={product.isInWishlist || false}
+            />
+          </div>
 
           <button
             type="button"

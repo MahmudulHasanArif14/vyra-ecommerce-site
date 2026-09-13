@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import AvatarUploader from "@/components/account/avatar-uploader";
 import CancelOrderButton from "@/components/account/cancel-order-button";
+import CartStat from "@/components/account/cart-stat";
 
 export default async function AccountPage() {
   const supabase = await createClient();
@@ -27,6 +28,19 @@ export default async function AccountPage() {
     .select("*")
     .eq("id", user.id)
     .single();
+  // Get wishlist count in two queries
+  const { data: userWishlist } = await supabase
+    .from("wishlists")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const { count: wishlistCount } = userWishlist
+    ? await supabase
+        .from("wishlist_items")
+        .select("*", { count: "exact", head: true })
+        .eq("wishlist_id", userWishlist.id)
+    : { count: 0 };
 
   const { data: orders } = await supabase
     .from("orders")
@@ -68,6 +82,27 @@ export default async function AccountPage() {
         return "bg-gray-100 text-gray-800";
     }
   };
+
+  // Fetch distinct delivery addresses from past orders
+  const { data: addressRows } = await supabase
+    .from("order_addresses")
+    .select(
+      `
+    address_line1,
+    city,
+    postal_code,
+    orders!inner (user_id)
+  `,
+    )
+    .eq("orders.user_id", user.id);
+
+  // Count unique combinations
+  const uniqueAddresses = new Set(
+    (addressRows || []).map((a) =>
+      `${a.address_line1}|${a.city}|${a.postal_code || ""}`.toLowerCase(),
+    ),
+  );
+  const addressCount = uniqueAddresses.size;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-12 space-y-8">
@@ -118,6 +153,7 @@ export default async function AccountPage() {
                 <UserIcon className="w-3 h-3" />
                 Edit profile
               </Link>
+
               <Link
                 href="/account/orders"
                 className="text-xs border px-3 py-1.5 rounded hover:bg-gray-50 transition flex items-center gap-1"
@@ -154,29 +190,20 @@ export default async function AccountPage() {
           className="bg-white p-4 rounded-lg border hover:border-black transition"
         >
           <Heart className="w-5 h-5 text-gray-400 mb-2" />
-          <p className="text-2xl font-bold">—</p>
+          <p className="text-2xl font-bold">{wishlistCount || 0}</p>
           <p className="text-xs text-gray-500 uppercase tracking-wider mt-1">
             Wishlist
           </p>
         </Link>
 
-        <Link
-          href="/cart"
-          className="bg-white p-4 rounded-lg border hover:border-black transition"
-        >
-          <ShoppingBag className="w-5 h-5 text-gray-400 mb-2" />
-          <p className="text-2xl font-bold">—</p>
-          <p className="text-xs text-gray-500 uppercase tracking-wider mt-1">
-            Cart
-          </p>
-        </Link>
+        <CartStat />
 
         <Link
-          href="/account/profile"
+          href="/account/addresses"
           className="bg-white p-4 rounded-lg border hover:border-black transition"
         >
           <MapPin className="w-5 h-5 text-gray-400 mb-2" />
-          <p className="text-2xl font-bold">—</p>
+          <p className="text-2xl font-bold">{addressCount}</p>
           <p className="text-xs text-gray-500 uppercase tracking-wider mt-1">
             Addresses
           </p>

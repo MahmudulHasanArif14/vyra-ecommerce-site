@@ -2,13 +2,20 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingBag, Heart } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { addToCart } from "@/actions/cart";
 import { trackEvent } from "@/lib/analytics/track";
 import { toast } from "sonner";
+import WishlistButton from "./wishlist-button"; // ⭐ NEW
 
-export default function ProductCard({ product }: { product: any }) {
+export default function ProductCard({
+  product,
+  isInWishlist = false, // ⭐ NEW prop
+}: {
+  product: any;
+  isInWishlist?: boolean;
+}) {
   const { addItem } = useCart();
 
   const primaryImage =
@@ -31,7 +38,6 @@ export default function ProductCard({ product }: { product: any }) {
     e.preventDefault();
     if (!firstVariant) return toast.error("Out of stock");
 
-    // Client UI update
     addItem({
       variantId: firstVariant.id,
       quantity: 1,
@@ -41,10 +47,8 @@ export default function ProductCard({ product }: { product: any }) {
       color: firstVariant.color_name,
     });
 
-    // Persist
     await addToCart(firstVariant.id, 1);
 
-    // Track
     trackEvent("add_to_cart", {
       product_id: product.id,
       variant_id: firstVariant.id,
@@ -67,7 +71,6 @@ export default function ProductCard({ product }: { product: any }) {
           className="object-cover group-hover:scale-105 transition duration-500"
         />
 
-        {/* Discount badge */}
         {product.compare_at_price &&
           product.compare_at_price > product.base_price && (
             <span className="absolute top-2 left-2 bg-black text-white text-[10px] px-2 py-1 rounded">
@@ -79,7 +82,6 @@ export default function ProductCard({ product }: { product: any }) {
             </span>
           )}
 
-        {/* Out of stock overlay */}
         {!inStock && (
           <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
             <span className="text-sm font-semibold tracking-widest">
@@ -88,19 +90,14 @@ export default function ProductCard({ product }: { product: any }) {
           </div>
         )}
 
-        {/* Quick wishlist */}
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            toast("Added to wishlist");
-          }}
-          className="absolute top-2 right-2 w-8 h-8 bg-white/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-        >
-          <Heart className="w-4 h-4" />
-        </button>
+        {/* ⭐ NEW: Real wishlist button */}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
+          <WishlistButton productId={product.id} isInWishlist={isInWishlist} />
+        </div>
       </div>
 
       <h3 className="font-medium text-sm line-clamp-2">{product.name}</h3>
+
       <div className="flex items-center gap-2 mt-1">
         <span className="font-bold">৳{product.base_price}</span>
         {product.compare_at_price &&
@@ -111,7 +108,6 @@ export default function ProductCard({ product }: { product: any }) {
           )}
       </div>
 
-      {/* Color dots */}
       {product.product_variants?.length > 0 && (
         <div className="flex gap-1 mt-2">
           {Array.from(

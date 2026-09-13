@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import ProductVariantSelector from "./variant-selector";
 import ProductViewTracker from "./view-tracker";
+import { getWishlistProductIds } from "@/actions/wishlist";
 
 export default async function ProductPage({
   params,
@@ -44,6 +45,9 @@ export default async function ProductPage({
   const sizes = Array.from(
     new Set(product.product_variants.map((v: any) => v.size_name)),
   ).filter(Boolean) as string[];
+
+  const wishlistIds = await getWishlistProductIds();
+  const isInWishlist = wishlistIds.includes(product.id);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 grid md:grid-cols-2 gap-12">
@@ -113,7 +117,7 @@ export default async function ProductPage({
 
         {/* ✅ Interactive Variant Selector — handles price, add to cart, buy now */}
         <ProductVariantSelector
-          product={product}
+          product={{ ...product, isInWishlist }}
           colors={colors}
           sizes={sizes}
           variants={product.product_variants}
