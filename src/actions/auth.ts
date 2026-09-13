@@ -48,7 +48,7 @@ export async function register(formData: FormData) {
   });
 
   if (!parsed.success) {
-    return { success: false, error: parsed.error.errors[0].message };
+    return { success: false, error: parsed.error.message };
   }
 
   const { data, error } = await supabase.auth.signUp({

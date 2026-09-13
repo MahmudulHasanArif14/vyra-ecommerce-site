@@ -25,7 +25,8 @@ const categorySchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-type CategoryFormValues = z.infer<typeof categorySchema>;
+type CategoryFormInput = z.input<typeof categorySchema>;
+type CategoryFormValues = z.output<typeof categorySchema>;
 
 type Props = {
   initialData?: {
@@ -53,7 +54,7 @@ export default function CategoryForm({ initialData }: Props) {
     watch,
     setValue,
     formState: { errors },
-  } = useForm<CategoryFormValues>({
+  } = useForm<CategoryFormInput, unknown, CategoryFormValues>({
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: initialData?.name || "",

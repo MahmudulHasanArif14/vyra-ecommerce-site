@@ -14,9 +14,9 @@ const productSchema = z.object({
   name: z.string().min(2),
   slug: z.string().min(2),
   category_id: z.string().uuid(),
-  short_description: z.string().optional(),
-  description: z.string().optional(),
-  brand: z.string().optional(),
+  short_description: z.string().default(""),
+  description: z.string().default(""),
+  brand: z.string().default(""),
   sku: z.string().min(2),
   base_price: z.coerce.number().positive(),
   compare_at_price: z.coerce.number().optional().nullable(),
@@ -25,7 +25,8 @@ const productSchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-type ProductFormValues = z.infer<typeof productSchema>;
+type ProductFormInput = z.input<typeof productSchema>;
+type ProductFormValues = z.output<typeof productSchema>;
 
 type Variant = {
   sku: string;
@@ -59,7 +60,7 @@ export default function ProductForm({
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<ProductFormValues>({
+  } = useForm<ProductFormInput, unknown, ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: { featured: false, is_active: true },
   });
