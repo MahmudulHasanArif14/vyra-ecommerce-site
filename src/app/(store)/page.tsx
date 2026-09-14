@@ -34,7 +34,7 @@ export default async function HomePage() {
       <section className="max-w-7xl mx-auto px-4 py-16 grid md:grid-cols-2 gap-12 items-center">
         <div className="space-y-6">
           <p className="italic font-serif text-xl text-gray-600">
-            Your Style, Your Vibe.
+            Your Style, Your Vibe.Your Lifestyle, Your Statement.
           </p>
           <h1 className="text-5xl md:text-6xl font-bold leading-tight">
             Elevate Your
