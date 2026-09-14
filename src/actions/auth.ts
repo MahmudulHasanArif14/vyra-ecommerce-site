@@ -82,7 +82,8 @@ export async function signInWithGoogle() {
 
   // const siteUrl = process.env.SITE_URL || "http://localhost:3000";
 
-  const siteUrl = "https://vyra-ecommerce-site.vercel.app/auth/callback";
+  const siteUrl =
+    "vyra-ecommerce-site-ff8cd823s-aa6845355-2488s-projects.vercel.app/auth/callback";
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
