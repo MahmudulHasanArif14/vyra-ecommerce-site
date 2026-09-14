@@ -80,11 +80,14 @@ export async function register(formData: FormData) {
 export async function signInWithGoogle() {
   const supabase = await createClient();
 
-  const siteUrl = process.env.SITE_URL || "http://localhost:3000";
+  // const siteUrl = process.env.SITE_URL || "http://localhost:3000";
+
+  const siteUrl = "https://vyra-ecommerce-site.vercel.app/auth/callback";
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${siteUrl}/auth/callback`,
+      redirectTo: siteUrl,
     },
   });
 
