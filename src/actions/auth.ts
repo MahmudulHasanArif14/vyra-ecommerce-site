@@ -48,7 +48,10 @@ export async function register(formData: FormData) {
   });
 
   if (!parsed.success) {
-    return { success: false, error: parsed.error.message };
+    return {
+      success: false,
+      error: parsed.error.issues[0].message || "Invalid input",
+    };
   }
 
   const { data, error } = await supabase.auth.signUp({
