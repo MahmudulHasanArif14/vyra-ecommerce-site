@@ -12,4 +12,5 @@ export const checkoutSchema = z.object({
   paymentMethod: z.enum(["cash_on_delivery"]), // Extensible for future
 });
 
+// done
 export type CheckoutFormValues = z.infer<typeof checkoutSchema>;
