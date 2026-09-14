@@ -55,7 +55,7 @@ export default function CategoryForm({ initialData }: Props) {
     setValue,
     formState: { errors },
   } = useForm<CategoryFormInput, unknown, CategoryFormValues>({
-    resolver: zodResolver(categorySchema),
+    resolver: zodResolver(categorySchema) as any,
     defaultValues: {
       name: initialData?.name || "",
       slug: initialData?.slug || "",

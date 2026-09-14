@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { checkoutSchema } from "@/Validations/checkout";
+import { checkoutSchema } from "@/validations/checkout";
 import { getSetting, getNumber } from "@/lib/settings";
 
 type OrderItemInput = {

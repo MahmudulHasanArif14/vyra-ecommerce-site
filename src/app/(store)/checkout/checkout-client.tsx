@@ -3,7 +3,7 @@
 import { useCart } from "@/hooks/use-cart";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { checkoutSchema, CheckoutFormValues } from "@/Validations/checkout";
+import { checkoutSchema, CheckoutFormValues } from "@/validations/checkout";
 import { createOrder } from "@/actions/orders";
 import { trackEvent } from "@/lib/analytics/track";
 import { useRouter } from "next/navigation";
