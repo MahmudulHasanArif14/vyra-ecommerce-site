@@ -6,6 +6,7 @@ import { Upload, X, Star } from "lucide-react";
 import { uploadProductImage } from "@/actions/admin";
 
 type UploadedImage = {
+  id?: string;
   image_url: string;
   is_primary: boolean;
   sort_order: number;

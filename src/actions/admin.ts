@@ -108,3 +108,176 @@ export async function uploadProductImage(formData: FormData) {
 
   return { success: true, url: urlData.publicUrl };
 }
+
+/**
+ * Update an existing product with images and variants.
+ * Handles adding new items, updating existing, and removing deleted.
+ */
+export async function updateProduct(
+  productId: string,
+  formData: {
+    name: string;
+    slug: string;
+    category_id: string;
+    short_description: string;
+    description: string;
+    brand: string;
+    sku: string;
+    base_price: number;
+    compare_at_price: number | null;
+    cost_price: number | null;
+    featured: boolean;
+    is_active: boolean;
+    images: {
+      id?: string;
+      image_url: string;
+      is_primary: boolean;
+      sort_order: number;
+    }[];
+    variants: {
+      id?: string;
+      sku: string;
+      color_name: string | null;
+      color_hex: string | null;
+      size_name: string | null;
+      price: number | null;
+      stock_quantity: number;
+    }[];
+  },
+) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  // 1. Update product row
+  const { error: productError } = await supabase
+    .from("products")
+    .update({
+      name: formData.name,
+      slug: formData.slug,
+      category_id: formData.category_id,
+      short_description: formData.short_description || null,
+      description: formData.description || null,
+      brand: formData.brand || null,
+      sku: formData.sku,
+      base_price: formData.base_price,
+      compare_at_price: formData.compare_at_price,
+      cost_price: formData.cost_price,
+      featured: formData.featured,
+      is_active: formData.is_active,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", productId);
+
+  if (productError) return { success: false, error: productError.message };
+
+  // 2. Sync images: delete removed, upsert the rest
+  const { data: existingImages } = await supabase
+    .from("product_images")
+    .select("id")
+    .eq("product_id", productId);
+
+  const existingImageIds = new Set((existingImages || []).map((i) => i.id));
+  const keptImageIds = new Set(
+    formData.images.filter((i) => i.id).map((i) => i.id!),
+  );
+
+  // Delete images that were removed
+  const imagesToDelete = Array.from(existingImageIds).filter(
+    (id) => !keptImageIds.has(id),
+  );
+  if (imagesToDelete.length > 0) {
+    await supabase.from("product_images").delete().in("id", imagesToDelete);
+  }
+
+  // Upsert images (update existing + insert new)
+  for (const img of formData.images) {
+    if (img.id) {
+      await supabase
+        .from("product_images")
+        .update({
+          image_url: img.image_url,
+          is_primary: img.is_primary,
+          sort_order: img.sort_order,
+        })
+        .eq("id", img.id);
+    } else {
+      await supabase.from("product_images").insert({
+        product_id: productId,
+        image_url: img.image_url,
+        is_primary: img.is_primary,
+        sort_order: img.sort_order,
+      });
+    }
+  }
+
+  // 3. Sync variants
+  const { data: existingVariants } = await supabase
+    .from("product_variants")
+    .select("id")
+    .eq("product_id", productId);
+
+  const existingVariantIds = new Set((existingVariants || []).map((v) => v.id));
+  const keptVariantIds = new Set(
+    formData.variants.filter((v) => v.id).map((v) => v.id!),
+  );
+
+  const variantsToDelete = Array.from(existingVariantIds).filter(
+    (id) => !keptVariantIds.has(id),
+  );
+  if (variantsToDelete.length > 0) {
+    await supabase.from("product_variants").delete().in("id", variantsToDelete);
+  }
+
+  // Update or insert variants
+  for (const v of formData.variants) {
+    if (v.id) {
+      await supabase
+        .from("product_variants")
+        .update({
+          sku: v.sku,
+          color_name: v.color_name,
+          color_hex: v.color_hex,
+          size_name: v.size_name,
+          price: v.price,
+          stock_quantity: v.stock_quantity,
+        })
+        .eq("id", v.id);
+    } else {
+      await supabase.from("product_variants").insert({
+        product_id: productId,
+        sku: v.sku,
+        color_name: v.color_name,
+        color_hex: v.color_hex,
+        size_name: v.size_name,
+        price: v.price,
+        stock_quantity: v.stock_quantity,
+      });
+    }
+  }
+
+  revalidatePath("/admin/products");
+  revalidatePath(`/admin/products/${productId}`);
+  revalidatePath(`/products/${formData.slug}`);
+  revalidatePath("/");
+
+  return { success: true, productId };
+}
+
+/**
+ * Delete a product and all its images/variants (cascades).
+ */
+export async function deleteProduct(productId: string) {
+  await requireAdmin();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("products")
+    .delete()
+    .eq("id", productId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/admin/products");
+  revalidatePath("/");
+  return { success: true };
+}
