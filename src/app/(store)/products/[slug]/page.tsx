@@ -4,6 +4,7 @@ import Image from "next/image";
 import ProductVariantSelector from "./variant-selector";
 import ProductViewTracker from "./view-tracker";
 import { getWishlistProductIds } from "@/actions/wishlist";
+import ProductGallery from "@/components/products/product-gallery";
 
 export default async function ProductPage({
   params,
@@ -58,40 +59,7 @@ export default async function ProductPage({
       />
 
       {/* Image Gallery */}
-      <div className="space-y-4">
-        <div className="relative aspect-square rounded-lg overflow-hidden border bg-gray-50">
-          <Image
-            src={
-              primaryImage ||
-              "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?q=80&w=800"
-            }
-            alt={product.name}
-            fill
-            sizes="(max-width: 768px) 100vw, 50vw"
-            className="object-cover"
-            priority
-          />
-        </div>
-
-        {sortedImages.length > 1 && (
-          <div className="grid grid-cols-4 gap-4">
-            {sortedImages.map((img: any) => (
-              <div
-                key={img.id}
-                className="relative aspect-square rounded-md overflow-hidden border cursor-pointer hover:border-black transition bg-gray-50"
-              >
-                <Image
-                  src={img.image_url}
-                  alt={img.alt_text || product.name}
-                  fill
-                  sizes="150px"
-                  className="object-cover"
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <ProductGallery images={sortedImages} productName={product.name} />
 
       {/* Product Info & Variant Selector */}
       <div className="space-y-6">

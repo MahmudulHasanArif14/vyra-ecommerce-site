@@ -30,6 +30,26 @@ export async function createProduct(formData: {
   await requireAdmin();
   const supabase = await createClient();
 
+  // Validate variants have SKUs
+  for (const v of formData.variants) {
+    if (!v.sku || v.sku.trim() === "") {
+      return {
+        success: false,
+        error: "Every variant must have a unique SKU",
+      };
+    }
+  }
+
+  // Check for duplicate SKUs within the form
+  const skus = formData.variants.map((v) => v.sku.trim());
+  const duplicateSkus = skus.filter((sku, i) => skus.indexOf(sku) !== i);
+  if (duplicateSkus.length > 0) {
+    return {
+      success: false,
+      error: `Duplicate SKU in form: ${duplicateSkus[0]}`,
+    };
+  }
+
   // 1. Insert Product
   const { data: product, error: productError } = await supabase
     .from("products")
@@ -148,6 +168,30 @@ export async function updateProduct(
   await requireAdmin();
   const supabase = await createClient();
 
+  console.log("===== updateProduct called =====");
+  console.log("Product ID:", productId);
+  console.log("Variants received:", JSON.stringify(formData.variants, null, 2));
+
+  // Validate variants have SKUs
+  for (const v of formData.variants) {
+    if (!v.sku || v.sku.trim() === "") {
+      return {
+        success: false,
+        error: "Every variant must have a unique SKU",
+      };
+    }
+  }
+
+  // Check for duplicate SKUs within the form
+  const skus = formData.variants.map((v) => v.sku.trim());
+  const duplicateSkus = skus.filter((sku, i) => skus.indexOf(sku) !== i);
+  if (duplicateSkus.length > 0) {
+    return {
+      success: false,
+      error: `Duplicate SKU in form: ${duplicateSkus[0]}`,
+    };
+  }
+
   // 1. Update product row
   const { error: productError } = await supabase
     .from("products")
@@ -168,9 +212,12 @@ export async function updateProduct(
     })
     .eq("id", productId);
 
-  if (productError) return { success: false, error: productError.message };
+  if (productError) {
+    console.error("Product update error:", productError);
+    return { success: false, error: productError.message };
+  }
 
-  // 2. Sync images: delete removed, upsert the rest
+  // 2. Sync images (unchanged)
   const { data: existingImages } = await supabase
     .from("product_images")
     .select("id")
@@ -181,7 +228,6 @@ export async function updateProduct(
     formData.images.filter((i) => i.id).map((i) => i.id!),
   );
 
-  // Delete images that were removed
   const imagesToDelete = Array.from(existingImageIds).filter(
     (id) => !keptImageIds.has(id),
   );
@@ -189,7 +235,6 @@ export async function updateProduct(
     await supabase.from("product_images").delete().in("id", imagesToDelete);
   }
 
-  // Upsert images (update existing + insert new)
   for (const img of formData.images) {
     if (img.id) {
       await supabase
@@ -210,7 +255,9 @@ export async function updateProduct(
     }
   }
 
-  // 3. Sync variants
+  // ============================================================
+  // 3. Sync variants — NOW WITH FULL ERROR LOGGING
+  // ============================================================
   const { data: existingVariants } = await supabase
     .from("product_variants")
     .select("id")
@@ -224,14 +271,29 @@ export async function updateProduct(
   const variantsToDelete = Array.from(existingVariantIds).filter(
     (id) => !keptVariantIds.has(id),
   );
+
+  console.log("Existing variant IDs:", Array.from(existingVariantIds));
+  console.log("Kept variant IDs:", Array.from(keptVariantIds));
+  console.log("Variants to delete:", variantsToDelete);
+
   if (variantsToDelete.length > 0) {
-    await supabase.from("product_variants").delete().in("id", variantsToDelete);
+    const { error: deleteErr } = await supabase
+      .from("product_variants")
+      .delete()
+      .in("id", variantsToDelete);
+    if (deleteErr) console.error("Variant delete error:", deleteErr);
   }
 
-  // Update or insert variants
   for (const v of formData.variants) {
+    console.log("Processing variant:", {
+      id: v.id,
+      sku: v.sku,
+      stock: v.stock_quantity,
+    });
+
     if (v.id) {
-      await supabase
+      // UPDATE
+      const { data, error: updateErr } = await supabase
         .from("product_variants")
         .update({
           sku: v.sku,
@@ -241,17 +303,34 @@ export async function updateProduct(
           price: v.price,
           stock_quantity: v.stock_quantity,
         })
-        .eq("id", v.id);
+        .eq("id", v.id)
+        .select();
+
+      if (updateErr) {
+        console.error("❌ Variant UPDATE error for", v.id, ":", updateErr);
+      } else {
+        console.log("✅ Variant updated:", data);
+      }
     } else {
-      await supabase.from("product_variants").insert({
-        product_id: productId,
-        sku: v.sku,
-        color_name: v.color_name,
-        color_hex: v.color_hex,
-        size_name: v.size_name,
-        price: v.price,
-        stock_quantity: v.stock_quantity,
-      });
+      // INSERT
+      const { data, error: insertErr } = await supabase
+        .from("product_variants")
+        .insert({
+          product_id: productId,
+          sku: v.sku,
+          color_name: v.color_name,
+          color_hex: v.color_hex,
+          size_name: v.size_name,
+          price: v.price,
+          stock_quantity: v.stock_quantity,
+        })
+        .select();
+
+      if (insertErr) {
+        console.error("❌ Variant INSERT error:", insertErr);
+      } else {
+        console.log("✅ Variant inserted:", data);
+      }
     }
   }
 
@@ -259,10 +338,11 @@ export async function updateProduct(
   revalidatePath(`/admin/products/${productId}`);
   revalidatePath(`/products/${formData.slug}`);
   revalidatePath("/");
+  revalidatePath("/admin/inventory");
 
+  console.log("===== updateProduct finished =====");
   return { success: true, productId };
 }
-
 /**
  * Delete a product and all its images/variants (cascades).
  */

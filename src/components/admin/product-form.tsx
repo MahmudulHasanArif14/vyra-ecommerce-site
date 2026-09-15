@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createProduct, updateProduct } from "@/actions/admin";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import ImageUploader from "./image-uploader";
 
 const productSchema = z.object({
@@ -154,6 +154,21 @@ export default function ProductForm({
     if (images.length === 0) return toast.error("Add at least one image");
     if (variants.length === 0) return toast.error("Add at least one variant");
 
+    // Check every variant has a SKU
+    const missingSku = variants.find((v) => !v.sku || v.sku.trim() === "");
+    if (missingSku) {
+      return toast.error("Every variant must have a SKU");
+    }
+
+    // Check for duplicate SKUs
+    const skuSet = new Set<string>();
+    for (const v of variants) {
+      if (skuSet.has(v.sku.trim())) {
+        return toast.error(`Duplicate SKU: ${v.sku}`);
+      }
+      skuSet.add(v.sku.trim());
+    }
+
     setIsSubmitting(true);
 
     const payload = {
@@ -170,7 +185,7 @@ export default function ProductForm({
     };
 
     const result = isEdit
-      ? await updateProduct(initialData.id, payload)
+      ? await updateProduct(initialData.id, payload as any)
       : await createProduct(payload as any);
 
     setIsSubmitting(false);
@@ -181,6 +196,7 @@ export default function ProductForm({
       router.refresh();
     } else {
       toast.error(result.error || "Failed to save product");
+      console.error("Save error:", result.error);
     }
   };
 
@@ -328,6 +344,23 @@ export default function ProductForm({
         />
       </div>
 
+      {isEdit &&
+        (!initialData?.product_variants ||
+          initialData.product_variants.length === 0) && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-yellow-800">
+                This product has no variants yet
+              </p>
+              <p className="text-yellow-700 mt-0.5">
+                Add at least one variant with a unique SKU (e.g.
+                PRODUCT-001-SIZE) below and click UPDATE to save it.
+              </p>
+            </div>
+          </div>
+        )}
+
       {/* Variants */}
       <div className="bg-white p-6 rounded-lg border space-y-4">
         <div className="flex justify-between items-center">
@@ -353,12 +386,20 @@ export default function ProductForm({
               className="grid grid-cols-12 gap-2 items-end border-b pb-3"
             >
               <div className="col-span-3">
-                <label className="block text-xs text-gray-500 mb-1">SKU</label>
+                <label className="block text-xs text-gray-500 mb-1">
+                  SKU <span className="text-red-500">*</span>
+                </label>
                 <input
                   value={variant.sku}
                   onChange={(e) => updateVariant(i, "sku", e.target.value)}
+                  required
+                  placeholder="PROD-001-BLK"
                   className="w-full border p-2 rounded-md text-sm"
                 />
+
+                {!variant.sku.trim() && (
+                  <p className="text-red-500 text-[10px] mt-0.5">Required</p>
+                )}
               </div>
               <div className="col-span-2">
                 <label className="block text-xs text-gray-500 mb-1">
