@@ -2,9 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-
 import { checkoutSchema } from "@/validations/checkout";
-
+import { validateCoupon } from "@/actions/coupons";
 import { getSetting, getNumber } from "@/lib/settings";
 
 type OrderItemInput = {
@@ -15,36 +14,37 @@ type OrderItemInput = {
 type CreateOrderInput = {
   customer: any;
   items: OrderItemInput[];
+  couponCode?: string | null;
 };
+
+function generateOrderNumber(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let suffix = "";
+  for (let i = 0; i < 6; i++) {
+    suffix += chars[Math.floor(Math.random() * chars.length)];
+  }
+  const year = new Date().getFullYear();
+  return `VYRA-${year}-${suffix}`;
+}
 
 export async function createOrder(input: CreateOrderInput) {
   const supabase = await createClient();
   const cookieStore = await cookies();
 
-  // ⭐ Get the logged-in user (null for guests)
+  // Get the logged-in user (null for guests)
   const {
     data: { user },
   } = await supabase.auth.getUser();
   console.log("[createOrder] user:", user?.id || "guest", user?.email || "");
 
   // ============================================================
-  // 1. Fetch delivery settings (BEFORE validation so we know the rules)
+  // 1. Fetch delivery settings
   // ============================================================
   const deliveryCharge = getNumber(await getSetting("delivery_charge"), 100);
   const freeThreshold = getNumber(
     await getSetting("free_delivery_threshold"),
     5000,
   );
-
-  function generateOrderNumber(): string {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I/L
-    let suffix = "";
-    for (let i = 0; i < 6; i++) {
-      suffix += chars[Math.floor(Math.random() * chars.length)];
-    }
-    const year = new Date().getFullYear();
-    return `VYRA-${year}-${suffix}`;
-  }
 
   // ============================================================
   // 2. Validate Customer Data
@@ -117,26 +117,49 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   // ============================================================
-  // 5. Calculate Delivery & Final Total (using settings)
+  // 5. Validate Coupon (AFTER subtotal is known — OUTSIDE the loop)
   // ============================================================
-  const deliveryFee = subtotal >= freeThreshold ? 0 : deliveryCharge;
-  const total = subtotal + deliveryFee;
+  let discount = 0;
+  let couponId: string | null = null;
+
+  if (input.couponCode) {
+    const couponResult = await validateCoupon(input.couponCode, subtotal);
+    if (couponResult.valid && couponResult.coupon) {
+      discount = couponResult.coupon.discount;
+      couponId = couponResult.coupon.id;
+    } else {
+      return {
+        success: false,
+        error: couponResult.error || "Invalid coupon",
+      };
+    }
+  }
+
+  // ============================================================
+  // 6. Calculate Delivery & Final Total
+  // ============================================================
+  const discountedSubtotal = Math.max(0, subtotal - discount);
+  const deliveryFee = discountedSubtotal >= freeThreshold ? 0 : deliveryCharge;
+  const total = discountedSubtotal + deliveryFee;
 
   console.log("[createOrder] totals:", {
     subtotal,
+    discount,
+    discountedSubtotal,
     deliveryCharge,
     freeThreshold,
     deliveryFee,
     total,
+    couponCode: input.couponCode,
   });
 
   // ============================================================
-  // 6. Generate Order Number
+  // 7. Generate Order Number
   // ============================================================
   const orderNumber = generateOrderNumber();
 
   // ============================================================
-  // 7. Atomic RPC — inserts order + items + address, decrements stock
+  // 8. Atomic RPC — inserts order + items + address, decrements stock
   // ============================================================
   const { data: rpcResult, error: rpcError } = await supabase.rpc(
     "create_order_transaction",
@@ -148,6 +171,7 @@ export async function createOrder(input: CreateOrderInput) {
         guest_phone: customer.phone,
         subtotal,
         delivery_fee: deliveryFee,
+        discount, // ⭐ NOW PASSED
         total,
         notes: null,
       },
@@ -173,7 +197,20 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   // ============================================================
-  // 8. Clear Cart Cookie
+  // 9. Increment Coupon Usage (AFTER successful order)
+  // ============================================================
+  if (couponId) {
+    const { error: couponErr } = await supabase.rpc("increment_coupon_usage", {
+      coupon_id: couponId,
+    });
+    if (couponErr) {
+      console.error("Failed to increment coupon usage:", couponErr);
+      // Don't fail the order — the order was already placed
+    }
+  }
+
+  // ============================================================
+  // 10. Clear Cart Cookie
   // ============================================================
   cookieStore.delete("vyra_cart");
 

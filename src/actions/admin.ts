@@ -4,6 +4,24 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/admin";
 import { revalidatePath } from "next/cache";
 
+type ImageInput = {
+  id?: string;
+  image_url: string;
+  is_primary: boolean;
+  sort_order: number;
+  color_name?: string | null;
+};
+
+// Safe admin check — returns an error object instead of throwing
+async function checkAdmin() {
+  try {
+    await requireAdmin();
+    return null;
+  } catch {
+    return { success: false, error: "Not authorized" } as const;
+  }
+}
+
 export async function createProduct(formData: {
   name: string;
   slug: string;
@@ -17,7 +35,7 @@ export async function createProduct(formData: {
   cost_price: number | null;
   featured: boolean;
   is_active: boolean;
-  images: { image_url: string; is_primary: boolean; sort_order: number }[];
+  images: ImageInput[];
   variants: {
     sku: string;
     color_name: string | null;
@@ -27,17 +45,24 @@ export async function createProduct(formData: {
     stock_quantity: number;
   }[];
 }) {
-  await requireAdmin();
+  const authError = await checkAdmin();
+  if (authError) return authError;
+
   const supabase = await createClient();
 
   // Validate variants have SKUs
   for (const v of formData.variants) {
     if (!v.sku || v.sku.trim() === "") {
-      return {
-        success: false,
-        error: "Every variant must have a unique SKU",
-      };
+      return { success: false, error: "Every variant must have a unique SKU" };
     }
+  }
+
+  function normalizeSlug(input: string): string {
+    return input
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
   }
 
   // Check for duplicate SKUs within the form
@@ -55,7 +80,7 @@ export async function createProduct(formData: {
     .from("products")
     .insert({
       name: formData.name,
-      slug: formData.slug,
+      slug: normalizeSlug(formData.slug),
       category_id: formData.category_id,
       short_description: formData.short_description,
       description: formData.description,
@@ -74,20 +99,40 @@ export async function createProduct(formData: {
 
   // 2. Insert Images
   if (formData.images.length > 0) {
-    const { error: imgError } = await supabase
-      .from("product_images")
-      .insert(
-        formData.images.map((img) => ({ ...img, product_id: product.id })),
-      );
+    const { error: imgError } = await supabase.from("product_images").insert(
+      formData.images.map((img) => ({
+        product_id: product.id,
+        image_url: img.image_url,
+        is_primary: img.is_primary,
+        sort_order: img.sort_order,
+        color_name: img.color_name || null,
+      })),
+    );
     if (imgError) return { success: false, error: imgError.message };
   }
 
   // 3. Insert Variants
   if (formData.variants.length > 0) {
-    const { error: varError } = await supabase
-      .from("product_variants")
-      .insert(formData.variants.map((v) => ({ ...v, product_id: product.id })));
-    if (varError) return { success: false, error: varError.message };
+    const { error: varError } = await supabase.from("product_variants").insert(
+      formData.variants.map((v) => ({
+        product_id: product.id,
+        sku: v.sku,
+        color_name: v.color_name,
+        color_hex: v.color_hex,
+        size_name: v.size_name,
+        price: v.price,
+        stock_quantity: v.stock_quantity,
+      })),
+    );
+    if (varError) {
+      if (varError.code === "23505") {
+        return {
+          success: false,
+          error: "One of the SKUs already exists. Use unique SKUs.",
+        };
+      }
+      return { success: false, error: varError.message };
+    }
   }
 
   revalidatePath("/admin/products");
@@ -96,15 +141,15 @@ export async function createProduct(formData: {
 }
 
 export async function uploadProductImage(formData: FormData) {
-  await requireAdmin();
-  const supabase = await createClient();
+  const authError = await checkAdmin();
+  if (authError) return authError;
 
+  const supabase = await createClient();
   const file = formData.get("file") as File;
   const productId = formData.get("productId") as string;
 
   if (!file) return { success: false, error: "No file provided" };
 
-  // Validate file
   const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
   if (!allowedTypes.includes(file.type)) {
     return { success: false, error: "Only JPG, PNG, WEBP allowed" };
@@ -129,10 +174,6 @@ export async function uploadProductImage(formData: FormData) {
   return { success: true, url: urlData.publicUrl };
 }
 
-/**
- * Update an existing product with images and variants.
- * Handles adding new items, updating existing, and removing deleted.
- */
 export async function updateProduct(
   productId: string,
   formData: {
@@ -148,12 +189,7 @@ export async function updateProduct(
     cost_price: number | null;
     featured: boolean;
     is_active: boolean;
-    images: {
-      id?: string;
-      image_url: string;
-      is_primary: boolean;
-      sort_order: number;
-    }[];
+    images: ImageInput[];
     variants: {
       id?: string;
       sku: string;
@@ -165,24 +201,30 @@ export async function updateProduct(
     }[];
   },
 ) {
-  await requireAdmin();
+  const authError = await checkAdmin();
+  if (authError) return authError;
+
   const supabase = await createClient();
 
   console.log("===== updateProduct called =====");
   console.log("Product ID:", productId);
   console.log("Variants received:", JSON.stringify(formData.variants, null, 2));
 
-  // Validate variants have SKUs
+  // Validate variants
   for (const v of formData.variants) {
     if (!v.sku || v.sku.trim() === "") {
-      return {
-        success: false,
-        error: "Every variant must have a unique SKU",
-      };
+      return { success: false, error: "Every variant must have a unique SKU" };
     }
   }
 
-  // Check for duplicate SKUs within the form
+  function normalizeSlug(input: string): string {
+    return input
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+  }
+
   const skus = formData.variants.map((v) => v.sku.trim());
   const duplicateSkus = skus.filter((sku, i) => skus.indexOf(sku) !== i);
   if (duplicateSkus.length > 0) {
@@ -197,7 +239,7 @@ export async function updateProduct(
     .from("products")
     .update({
       name: formData.name,
-      slug: formData.slug,
+      slug: normalizeSlug(formData.slug),
       category_id: formData.category_id,
       short_description: formData.short_description || null,
       description: formData.description || null,
@@ -217,7 +259,7 @@ export async function updateProduct(
     return { success: false, error: productError.message };
   }
 
-  // 2. Sync images (unchanged)
+  // 2. Sync images
   const { data: existingImages } = await supabase
     .from("product_images")
     .select("id")
@@ -237,27 +279,41 @@ export async function updateProduct(
 
   for (const img of formData.images) {
     if (img.id) {
-      await supabase
+      const { error } = await supabase
         .from("product_images")
         .update({
           image_url: img.image_url,
           is_primary: img.is_primary,
           sort_order: img.sort_order,
+          color_name: img.color_name || null,
         })
         .eq("id", img.id);
+      if (error) {
+        console.error("Image update error:", error);
+        return {
+          success: false,
+          error: `Image update failed: ${error.message}`,
+        };
+      }
     } else {
-      await supabase.from("product_images").insert({
+      const { error } = await supabase.from("product_images").insert({
         product_id: productId,
         image_url: img.image_url,
         is_primary: img.is_primary,
         sort_order: img.sort_order,
+        color_name: img.color_name || null,
       });
+      if (error) {
+        console.error("Image insert error:", error);
+        return {
+          success: false,
+          error: `Image insert failed: ${error.message}`,
+        };
+      }
     }
   }
 
-  // ============================================================
-  // 3. Sync variants — NOW WITH FULL ERROR LOGGING
-  // ============================================================
+  // 3. Sync variants
   const { data: existingVariants } = await supabase
     .from("product_variants")
     .select("id")
@@ -272,8 +328,6 @@ export async function updateProduct(
     (id) => !keptVariantIds.has(id),
   );
 
-  console.log("Existing variant IDs:", Array.from(existingVariantIds));
-  console.log("Kept variant IDs:", Array.from(keptVariantIds));
   console.log("Variants to delete:", variantsToDelete);
 
   if (variantsToDelete.length > 0) {
@@ -281,19 +335,19 @@ export async function updateProduct(
       .from("product_variants")
       .delete()
       .in("id", variantsToDelete);
-    if (deleteErr) console.error("Variant delete error:", deleteErr);
+    if (deleteErr) {
+      console.error("Variant delete error:", deleteErr);
+      return {
+        success: false,
+        error: `Variant delete failed: ${deleteErr.message}`,
+      };
+    }
   }
 
+  // ⭐ Update or insert variants with FULL error handling — no silent failures
   for (const v of formData.variants) {
-    console.log("Processing variant:", {
-      id: v.id,
-      sku: v.sku,
-      stock: v.stock_quantity,
-    });
-
     if (v.id) {
-      // UPDATE
-      const { data, error: updateErr } = await supabase
+      const { error: updateErr } = await supabase
         .from("product_variants")
         .update({
           sku: v.sku,
@@ -303,17 +357,18 @@ export async function updateProduct(
           price: v.price,
           stock_quantity: v.stock_quantity,
         })
-        .eq("id", v.id)
-        .select();
+        .eq("id", v.id);
 
       if (updateErr) {
-        console.error("❌ Variant UPDATE error for", v.id, ":", updateErr);
-      } else {
-        console.log("✅ Variant updated:", data);
+        console.error("❌ Variant UPDATE error:", updateErr);
+        return {
+          success: false,
+          error: `Failed to update variant "${v.sku}": ${updateErr.message}`,
+        };
       }
+      console.log("✅ Variant updated:", v.id);
     } else {
-      // INSERT
-      const { data, error: insertErr } = await supabase
+      const { error: insertErr } = await supabase
         .from("product_variants")
         .insert({
           product_id: productId,
@@ -323,14 +378,19 @@ export async function updateProduct(
           size_name: v.size_name,
           price: v.price,
           stock_quantity: v.stock_quantity,
-        })
-        .select();
+        });
 
       if (insertErr) {
         console.error("❌ Variant INSERT error:", insertErr);
-      } else {
-        console.log("✅ Variant inserted:", data);
+        if (insertErr.code === "23505") {
+          return { success: false, error: `SKU "${v.sku}" already exists` };
+        }
+        return {
+          success: false,
+          error: `Failed to insert variant "${v.sku}": ${insertErr.message}`,
+        };
       }
+      console.log("✅ Variant inserted:", v.sku);
     }
   }
 
@@ -343,11 +403,11 @@ export async function updateProduct(
   console.log("===== updateProduct finished =====");
   return { success: true, productId };
 }
-/**
- * Delete a product and all its images/variants (cascades).
- */
+
 export async function deleteProduct(productId: string) {
-  await requireAdmin();
+  const authError = await checkAdmin();
+  if (authError) return authError;
+
   const supabase = await createClient();
 
   const { error } = await supabase

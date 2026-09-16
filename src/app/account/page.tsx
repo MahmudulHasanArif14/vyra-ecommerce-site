@@ -208,6 +208,17 @@ export default async function AccountPage() {
             Addresses
           </p>
         </Link>
+
+        <Link
+          href="/account/reviews"
+          className="bg-white p-4 rounded-lg border hover:border-black transition"
+        >
+          <Star className="w-5 h-5 text-gray-400 mb-2" />
+          <p className="text-2xl font-bold">{reviewsCount || 0}</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mt-1">
+            Reviews
+          </p>
+        </Link>
       </div>
 
       {/* Recent Orders */}

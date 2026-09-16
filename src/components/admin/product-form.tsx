@@ -14,9 +14,9 @@ const productSchema = z.object({
   name: z.string().min(2),
   slug: z.string().min(2),
   category_id: z.string().uuid(),
-  short_description: z.string().optional(),
-  description: z.string().optional(),
-  brand: z.string().optional(),
+  short_description: z.string().default(""),
+  description: z.string().default(""),
+  brand: z.string().default(""),
   sku: z.string().min(2),
   base_price: z.coerce.number().positive(),
   compare_at_price: z.coerce.number().optional().nullable(),
@@ -25,10 +25,11 @@ const productSchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-type ProductFormValues = z.infer<typeof productSchema>;
+type ProductFormInput = z.input<typeof productSchema>;
+type ProductFormValues = z.output<typeof productSchema>;
 
-type VariantInput = {
-  id?: string;
+type Variant = {
+  id?: string; // ⭐ new — needed for updateProduct
   sku: string;
   color_name: string;
   color_hex: string;
@@ -42,6 +43,7 @@ type ImageInput = {
   image_url: string;
   is_primary: boolean;
   sort_order: number;
+  color_name?: string | null;
 };
 
 export default function ProductForm({
@@ -49,31 +51,34 @@ export default function ProductForm({
   initialData,
 }: {
   categories: { id: string; name: string }[];
-  initialData?: any; // product with product_images and product_variants
+  // ⭐ initialData is the raw product row (with product_images + product_variants)
+  initialData?: any;
 }) {
   const router = useRouter();
   const isEdit = !!initialData;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Build initial images
+  // ⭐ Load images from initialData (or empty for new)
   const [images, setImages] = useState<ImageInput[]>(
     initialData?.product_images?.map((img: any, i: number) => ({
       id: img.id,
       image_url: img.image_url,
       is_primary: img.is_primary,
       sort_order: img.sort_order ?? i,
+      color_name: img.color_name || null,
     })) || [],
   );
 
-  // Build initial variants
-  const [variants, setVariants] = useState<VariantInput[]>(
+  // ⭐ Load variants from initialData (or single empty for new)
+  const [variants, setVariants] = useState<Variant[]>(
     initialData?.product_variants?.map((v: any) => ({
       id: v.id,
       sku: v.sku || "",
       color_name: v.color_name || "",
       color_hex: v.color_hex || "#000000",
       size_name: v.size_name || "",
-      price: v.price,
+      price: v.price ?? null,
       stock_quantity: v.stock_quantity || 0,
     })) || [
       {
@@ -90,38 +95,27 @@ export default function ProductForm({
   const {
     register,
     handleSubmit,
-    watch,
+    watch, // ⭐ new
     setValue,
     formState: { errors },
-  } = useForm<ProductFormValues>({
-    resolver: zodResolver(productSchema) as any,
+  } = useForm<ProductFormInput, unknown, ProductFormValues>({
+    resolver: zodResolver(productSchema),
     defaultValues: {
-      name: initialData?.name || "",
-      slug: initialData?.slug || "",
-      category_id: initialData?.category_id || "",
-      short_description: initialData?.short_description || "",
-      description: initialData?.description || "",
-      brand: initialData?.brand || "",
-      sku: initialData?.sku || "",
-      base_price: initialData?.base_price || 0,
-      compare_at_price: initialData?.compare_at_price || null,
-      cost_price: initialData?.cost_price || null,
+      // ⭐ Pre-fill from initialData
+      name: initialData?.name ?? "",
+      slug: initialData?.slug ?? "",
+      category_id: initialData?.category_id ?? "",
+      short_description: initialData?.short_description ?? "",
+      description: initialData?.description ?? "",
+      brand: initialData?.brand ?? "",
+      sku: initialData?.sku ?? "",
+      base_price: initialData?.base_price ?? 0,
+      compare_at_price: initialData?.compare_at_price ?? null,
+      cost_price: initialData?.cost_price ?? null,
       featured: initialData?.featured ?? false,
       is_active: initialData?.is_active ?? true,
     },
   });
-
-  // Auto-generate slug from name (only for new products)
-  const name = watch("name");
-  const handleNameBlur = () => {
-    if (!isEdit && name) {
-      const slug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-      setValue("slug", slug);
-    }
-  };
 
   const addVariant = () => {
     setVariants([
@@ -144,7 +138,7 @@ export default function ProductForm({
     setVariants(variants.filter((_, idx) => idx !== i));
   };
 
-  const updateVariant = (i: number, field: keyof VariantInput, value: any) => {
+  const updateVariant = (i: number, field: keyof Variant, value: any) => {
     setVariants(
       variants.map((v, idx) => (idx === i ? { ...v, [field]: value } : v)),
     );
@@ -154,13 +148,13 @@ export default function ProductForm({
     if (images.length === 0) return toast.error("Add at least one image");
     if (variants.length === 0) return toast.error("Add at least one variant");
 
-    // Check every variant has a SKU
-    const missingSku = variants.find((v) => !v.sku || v.sku.trim() === "");
+    // ⭐ Validate every variant has a SKU
+    const missingSku = variants.find((v) => !v.sku || !v.sku.trim());
     if (missingSku) {
       return toast.error("Every variant must have a SKU");
     }
 
-    // Check for duplicate SKUs
+    // ⭐ Check duplicate SKUs in the form
     const skuSet = new Set<string>();
     for (const v of variants) {
       if (skuSet.has(v.sku.trim())) {
@@ -175,17 +169,27 @@ export default function ProductForm({
       ...data,
       compare_at_price: data.compare_at_price || null,
       cost_price: data.cost_price || null,
-      images,
+      images: images.map((img, i) => ({
+        id: img.id,
+        image_url: img.image_url,
+        is_primary: img.is_primary,
+        sort_order: i,
+        color_name: img.color_name || null,
+      })),
       variants: variants.map((v) => ({
-        ...v,
+        id: v.id, // ⭐ critical — tells updateProduct to update not insert
+        sku: v.sku.trim(),
         color_name: v.color_name || null,
+        color_hex: v.color_hex || null,
         size_name: v.size_name || null,
         price: v.price || null,
+        stock_quantity: v.stock_quantity,
       })),
     };
 
+    // ⭐ Route to update vs create
     const result = isEdit
-      ? await updateProduct(initialData.id, payload as any)
+      ? await updateProduct(initialData.id, payload)
       : await createProduct(payload as any);
 
     setIsSubmitting(false);
@@ -196,10 +200,25 @@ export default function ProductForm({
       router.refresh();
     } else {
       toast.error(result.error || "Failed to save product");
-      console.error("Save error:", result.error);
     }
   };
 
+  const nameValue = watch("name");
+  const slugValue = watch("slug");
+
+  const handleNameBlur = () => {
+    // Only auto-generate slug if:
+    // - we're creating a NEW product (not editing)
+    // - the slug is currently empty or matches a previous auto-generation
+    if (!isEdit && nameValue && !slugValue) {
+      const newSlug = nameValue
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-") // replace non-alphanumeric with hyphens
+        .replace(/(^-|-$)/g, ""); // trim leading/trailing hyphens
+      setValue("slug", newSlug);
+    }
+  };
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
       {/* Basic Info */}
@@ -227,9 +246,14 @@ export default function ProductForm({
               className="w-full border p-3 rounded-md"
               placeholder="premium-leather-bag"
             />
-            <p className="text-xs text-gray-500 mt-1">
-              URL: /products/your-slug
-            </p>
+            {slugValue && (
+              <p className="text-xs text-gray-500 mt-1">
+                URL: /products/{slugValue}
+              </p>
+            )}
+            {errors.slug && (
+              <p className="text-red-500 text-xs mt-1">{errors.slug.message}</p>
+            )}
           </div>
 
           <div>
@@ -328,7 +352,7 @@ export default function ProductForm({
               className="w-full border p-3 rounded-md"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Internal only — not shown to customers
+              Internal only - not shown to customers
             </p>
           </div>
         </div>
@@ -341,25 +365,13 @@ export default function ProductForm({
           images={images}
           setImages={setImages}
           productId={initialData?.id || "temp"}
+          availableColors={
+            Array.from(
+              new Set(variants.map((v) => v.color_name).filter(Boolean)),
+            ) as string[]
+          }
         />
       </div>
-
-      {isEdit &&
-        (!initialData?.product_variants ||
-          initialData.product_variants.length === 0) && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-yellow-800">
-                This product has no variants yet
-              </p>
-              <p className="text-yellow-700 mt-0.5">
-                Add at least one variant with a unique SKU (e.g.
-                PRODUCT-001-SIZE) below and click UPDATE to save it.
-              </p>
-            </div>
-          </div>
-        )}
 
       {/* Variants */}
       <div className="bg-white p-6 rounded-lg border space-y-4">
@@ -367,7 +379,7 @@ export default function ProductForm({
           <div>
             <h2 className="font-bold text-lg">Variants</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Each combination of color/size needs its own variant
+              Every variant needs a unique SKU
             </p>
           </div>
           <button
@@ -378,6 +390,23 @@ export default function ProductForm({
             <Plus className="w-4 h-4" /> Add Variant
           </button>
         </div>
+
+        {/* ⭐ Warning banner for edit-mode products with no variants */}
+        {isEdit &&
+          (!initialData?.product_variants ||
+            initialData.product_variants.length === 0) && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-yellow-800">
+                  This product has no variants yet
+                </p>
+                <p className="text-yellow-700 mt-0.5">
+                  Add at least one variant with a unique SKU below and save.
+                </p>
+              </div>
+            </div>
+          )}
 
         <div className="space-y-3">
           {variants.map((variant, i) => (
@@ -392,11 +421,9 @@ export default function ProductForm({
                 <input
                   value={variant.sku}
                   onChange={(e) => updateVariant(i, "sku", e.target.value)}
-                  required
                   placeholder="PROD-001-BLK"
                   className="w-full border p-2 rounded-md text-sm"
                 />
-
                 {!variant.sku.trim() && (
                   <p className="text-red-500 text-[10px] mt-0.5">Required</p>
                 )}
@@ -501,7 +528,6 @@ export default function ProductForm({
         </label>
       </div>
 
-      {/* Submit */}
       <div className="flex gap-3">
         <button
           type="submit"

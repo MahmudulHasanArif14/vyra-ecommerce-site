@@ -14,15 +14,19 @@ export default function ProductVariantSelector({
   colors,
   sizes,
   variants,
+  selectedColor,
+  onColorChange,
 }: {
   product: any;
   colors: string[];
   sizes: string[];
   variants: any[];
+  selectedColor: string | null;
+  onColorChange: (color: string) => void;
 }) {
-  const [selectedColor, setSelectedColor] = useState<string | null>(
-    colors[0] || null,
-  );
+  // const [selectedColor, onColorChange] = useState<string | null>(
+  //   colors[0] || null,
+  // );
   const [selectedSize, setSelectedSize] = useState<string | null>(
     sizes[0] || null,
   );
@@ -155,7 +159,7 @@ export default function ProductVariantSelector({
                   key={color}
                   type="button"
                   onClick={() => {
-                    setSelectedColor(color);
+                    onColorChange(color);
                     setSelectedSize(null); // reset size when color changes
                     setQuantity(1);
                   }}

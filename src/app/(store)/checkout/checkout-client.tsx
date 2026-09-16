@@ -8,6 +8,7 @@ import {
   CheckoutFormValues,
 } from "../../../validations/checkout";
 import { createOrder } from "@/actions/orders";
+import { validateCoupon } from "@/actions/coupons";
 import { trackEvent } from "@/lib/analytics/track";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -27,10 +28,20 @@ export default function CheckoutClient({
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [couponError, setCouponError] = useState("");
+  const [validating, setValidating] = useState(false);
+
   // Compute delivery + total on the client (must match server logic)
-  const deliveryFee = cartTotal >= freeThreshold ? 0 : deliveryCharge;
-  const total = cartTotal + deliveryFee;
-  const amountUntilFreeDelivery = freeThreshold - cartTotal;
+  // Coupon discount (applied before delivery calculation)
+  const discount = appliedCoupon?.discount || 0;
+  const discountedSubtotal = Math.max(0, cartTotal - discount);
+
+  // Delivery is calculated on the discounted subtotal
+  const deliveryFee = discountedSubtotal >= freeThreshold ? 0 : deliveryCharge;
+  const total = discountedSubtotal + deliveryFee;
+  const amountUntilFreeDelivery = freeThreshold - discountedSubtotal;
 
   const {
     register,
@@ -45,6 +56,29 @@ export default function CheckoutClient({
       phone: userDefaults?.phone || "",
     },
   });
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setValidating(true);
+    setCouponError("");
+
+    const result = await validateCoupon(couponCode, cartTotal);
+
+    if (result.valid && result.coupon) {
+      setAppliedCoupon(result.coupon);
+      toast.success(`Coupon applied: -৳${result.coupon.discount}`);
+    } else {
+      setCouponError(result.error || "Invalid coupon");
+      setAppliedCoupon(null);
+    }
+    setValidating(false);
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+    setCouponError("");
+  };
 
   // Track checkout_started once on mount
   useEffect(() => {
@@ -68,6 +102,7 @@ export default function CheckoutClient({
           variantId: i.variantId,
           quantity: i.quantity,
         })),
+        couponCode: appliedCoupon?.code || null,
       });
 
       if (result.success) {
@@ -75,6 +110,7 @@ export default function CheckoutClient({
           order_number: result.orderNumber,
           total,
           item_count: items.length,
+          coupon: appliedCoupon?.code,
         });
 
         clearCart();
@@ -256,6 +292,56 @@ export default function CheckoutClient({
               </p>
             </div>
           ))}
+        </div>
+
+        <div className="bg-white border rounded-lg p-4">
+          <label className="block text-sm font-medium mb-2">
+            Have a coupon?
+          </label>
+
+          {appliedCoupon ? (
+            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-md px-3 py-2">
+              <div>
+                <p className="font-mono font-medium text-sm text-green-800">
+                  {appliedCoupon.code}
+                </p>
+                <p className="text-xs text-green-700">
+                  -৳{appliedCoupon.discount}
+                  {appliedCoupon.description &&
+                    ` (${appliedCoupon.description})`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveCoupon}
+                className="text-xs text-red-600 hover:underline"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <input
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  placeholder="Enter code"
+                  className="flex-1 border p-2 rounded-md text-sm font-mono uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyCoupon}
+                  disabled={validating || !couponCode.trim()}
+                  className="bg-black text-white px-4 py-2 rounded-md text-xs tracking-wider hover:bg-gray-800 disabled:bg-gray-400"
+                >
+                  {validating ? "..." : "APPLY"}
+                </button>
+              </div>
+              {couponError && (
+                <p className="text-red-500 text-xs mt-1">{couponError}</p>
+              )}
+            </>
+          )}
         </div>
 
         <div className="border-t pt-4 space-y-2">
