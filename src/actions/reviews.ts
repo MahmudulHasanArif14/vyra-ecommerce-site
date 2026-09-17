@@ -54,7 +54,7 @@ export async function submitReview(formData: FormData) {
     rating: parsed.data.rating,
     title: parsed.data.title || null,
     comment: parsed.data.comment,
-    is_approved: false, // requires admin approval
+    is_approved: true, // requires admin approval
   });
 
   if (error) {
@@ -107,7 +107,7 @@ export async function updateMyReview(
       rating: formData.rating,
       title: formData.title || null,
       comment: formData.comment,
-      is_approved: false, // re-moderate after edit
+      is_approved: true, // re-moderate after edit
       updated_at: new Date().toISOString(),
     })
     .eq("id", reviewId)

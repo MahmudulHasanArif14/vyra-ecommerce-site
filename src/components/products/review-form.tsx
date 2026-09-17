@@ -40,7 +40,7 @@ export default function ReviewForm({
     setSubmitting(false);
 
     if (result.success) {
-      toast.success("Review submitted! It will appear after approval.");
+      toast.success("Thank you! Your review has been published.");
       setOpen(false);
       setRating(5);
       setTitle("");

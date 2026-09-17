@@ -122,10 +122,8 @@ export default async function ReviewSection({
               to write a review
             </div>
           ) : userReview ? (
-            <div className="mt-4 text-sm text-gray-500 text-center bg-green-50 border border-green-200 rounded-md p-3">
-              {userReview.is_approved
-                ? "✓ Your review is published"
-                : "⏳ Your review is pending approval"}
+            <div className="mt-4 text-sm text-green-700 text-center bg-green-50 border border-green-200 rounded-md p-3">
+              ✓ Your review is published
             </div>
           ) : canReview ? (
             <div className="mt-4">

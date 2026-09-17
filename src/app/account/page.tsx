@@ -14,6 +14,7 @@ import {
 import AvatarUploader from "@/components/account/avatar-uploader";
 import CancelOrderButton from "@/components/account/cancel-order-button";
 import CartStat from "@/components/account/cart-stat";
+import { Star } from "lucide-react";
 
 export default async function AccountPage() {
   const supabase = await createClient();
@@ -51,6 +52,11 @@ export default async function AccountPage() {
 
   const { count: totalOrders } = await supabase
     .from("orders")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id);
+
+  const { count: reviewsCount } = await supabase
+    .from("reviews")
     .select("*", { count: "exact", head: true })
     .eq("user_id", user.id);
 

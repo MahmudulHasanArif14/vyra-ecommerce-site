@@ -1,4 +1,15 @@
-import { Star, CheckCircle } from "lucide-react";
+import { Star, CheckCircle, CornerDownRight, ShieldCheck } from "lucide-react";
+
+type Reply = {
+  id: string;
+  reply: string;
+  is_admin_reply: boolean;
+  created_at: string;
+  profiles: {
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null;
+};
 
 type Review = {
   id: string;
@@ -8,6 +19,7 @@ type Review = {
   is_verified_purchase: boolean;
   created_at: string;
   profiles: { full_name: string | null; avatar_url: string | null } | null;
+  review_replies?: Reply[];
 };
 
 export default function ReviewList({ reviews }: { reviews: Review[] }) {
@@ -23,7 +35,7 @@ export default function ReviewList({ reviews }: { reviews: Review[] }) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {reviews.map((review) => {
         const initials = (review.profiles?.full_name || "Anonymous")
           .split(" ")
@@ -35,9 +47,9 @@ export default function ReviewList({ reviews }: { reviews: Review[] }) {
         return (
           <div
             key={review.id}
-            className="border-b last:border-0 pb-5 last:pb-0"
+            className="border-b last:border-0 pb-6 last:pb-0"
           >
-            {/* Reviewer header */}
+            {/* Reviewer */}
             <div className="flex items-start gap-3">
               {review.profiles?.avatar_url ? (
                 <img
@@ -94,6 +106,44 @@ export default function ReviewList({ reviews }: { reviews: Review[] }) {
             <p className="text-sm text-gray-700 mt-2 ml-13 whitespace-pre-line">
               {review.comment}
             </p>
+
+            {/* ⭐ Replies */}
+            {review.review_replies && review.review_replies.length > 0 && (
+              <div className="ml-13 mt-4 space-y-3">
+                {review.review_replies.map((reply) => (
+                  <div
+                    key={reply.id}
+                    className="bg-blue-50 border-l-2 border-blue-400 rounded-r-md p-3"
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <CornerDownRight className="w-3 h-3 text-blue-600" />
+                      {reply.is_admin_reply ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-blue-700">
+                          <ShieldCheck className="w-3 h-3" />
+                          VYRA Team
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-gray-700">
+                          {reply.profiles?.full_name || "Customer"}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-400">
+                        {new Date(reply.created_at).toLocaleDateString(
+                          "en-US",
+                          {
+                            month: "short",
+                            day: "numeric",
+                          },
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 whitespace-pre-line">
+                      {reply.reply}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
