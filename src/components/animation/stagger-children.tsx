@@ -44,7 +44,9 @@ export default function StaggerChildren({
       },
     });
 
-    return () => anim.kill();
+    return () => {
+      anim.kill();
+    };
   }, [stagger, y, selector]);
 
   return (

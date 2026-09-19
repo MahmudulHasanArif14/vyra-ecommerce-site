@@ -37,7 +37,9 @@ export default function ParallaxImage({
       },
     );
 
-    return () => anim.kill();
+    return () => {
+      anim.kill();
+    };
   }, [intensity]);
 
   return (
