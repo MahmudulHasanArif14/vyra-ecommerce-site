@@ -7,8 +7,7 @@ import SplitHero from "@/components/store/split-hero";
 import { getSettings } from "@/lib/settings";
 import FadeIn from "@/components/animation/fade-in";
 import StaggerChildren from "@/components/animation/stagger-children";
-
-const settings = await getSettings();
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -25,10 +24,10 @@ export default async function HomePage() {
     .from("products")
     .select(
       `
-    id, name, slug, base_price, compare_at_price, featured,
-    product_images(image_url, is_primary),
-     product_variants(id, price, stock_quantity, color_hex, color_name)
-  `,
+      id, name, slug, base_price, compare_at_price, featured,
+      product_images(image_url, is_primary),
+      product_variants(id, price, stock_quantity, color_hex, color_name)
+    `,
     )
     .eq("featured", true)
     .eq("is_active", true)
