@@ -26,6 +26,7 @@ export async function createProduct(formData: {
   name: string;
   slug: string;
   category_id: string;
+  gender: "men" | "women" | "unisex";
   short_description: string;
   description: string;
   brand: string;
@@ -82,6 +83,7 @@ export async function createProduct(formData: {
       name: formData.name,
       slug: normalizeSlug(formData.slug),
       category_id: formData.category_id,
+      gender: formData.gender || "unisex",
       short_description: formData.short_description,
       description: formData.description,
       brand: formData.brand,
@@ -180,6 +182,7 @@ export async function updateProduct(
     name: string;
     slug: string;
     category_id: string;
+    gender: "men" | "women" | "unisex";
     short_description: string;
     description: string;
     brand: string;
@@ -241,6 +244,7 @@ export async function updateProduct(
       name: formData.name,
       slug: normalizeSlug(formData.slug),
       category_id: formData.category_id,
+      gender: formData.gender || "unisex",
       short_description: formData.short_description || null,
       description: formData.description || null,
       brand: formData.brand || null,

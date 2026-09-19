@@ -4,6 +4,7 @@ import { useCart } from "@/hooks/use-cart";
 import Image from "next/image";
 import Link from "next/link";
 import { Trash2, Plus, Minus } from "lucide-react";
+import RelatedProducts from "@/components/products/related-products";
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, cartTotal, cartCount } = useCart();
@@ -19,6 +20,14 @@ export default function CartPage() {
           href="/products"
           className="bg-black text-white px-8 py-3 text-sm tracking-widest hover:bg-gray-800 transition"
         >
+          <div className="mt-12">
+            <RelatedProducts
+              productId="00000000-0000-0000-0000-000000000000" // dummy ID
+              categoryId={null}
+              gender={null}
+              limit={4}
+            />
+          </div>
           CONTINUE SHOPPING
         </Link>
       </div>

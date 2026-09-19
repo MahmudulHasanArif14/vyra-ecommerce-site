@@ -22,6 +22,13 @@ export default async function Header() {
   return (
     <header className="border-b border-gray-200 bg-[#FDFBF7] sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+        <Link href="/men" className="hover:text-gray-500">
+          MEN
+        </Link>
+        <Link href="/women" className="hover:text-gray-500">
+          WOMEN
+        </Link>
+
         {/* Left: Nav links */}
         <nav className="hidden md:flex gap-6 text-xs font-medium tracking-wider">
           {categories?.map((cat) => (

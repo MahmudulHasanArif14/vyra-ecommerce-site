@@ -3,6 +3,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { ShoppingBag, Search, Heart, User } from "lucide-react";
 import { ProductGrid } from "@/components/products/product-grid";
+import SplitHero from "@/components/store/split-hero";
+import { getSettings } from "@/lib/settings";
+import FadeIn from "@/components/animation/fade-in";
+import StaggerChildren from "@/components/animation/stagger-children";
+
+const settings = await getSettings();
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -31,41 +37,20 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-gray-900 font-sans">
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 py-16 grid md:grid-cols-2 gap-12 items-center">
-        <div className="space-y-6">
-          <p className="italic font-serif text-xl text-gray-600">
-            Your Style, Your Vibe.Your Lifestyle, Your Statement.
-          </p>
-          <h1 className="text-5xl md:text-6xl font-bold leading-tight">
-            Elevate Your
-            <br />
-            Everyday Style
-          </h1>
-          <Link
-            href="/products"
-            className="inline-block bg-black text-white px-8 py-4 text-sm tracking-widest hover:bg-gray-800 transition"
-          >
-            SHOP NOW
-          </Link>
-        </div>
-        <div className="relative h-[500px] rounded-lg overflow-hidden">
-          <Image
-            src="https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=1000&auto=format&fit=crop"
-            alt="Hero Fashion"
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 50vw"
-            priority
-          />
-        </div>
-      </section>
+      <SplitHero />
 
       {/* Shop By Category */}
       <section className="max-w-7xl mx-auto px-4 py-16">
-        <h2 className="text-center text-2xl font-bold mb-12 tracking-widest">
-          SHOP BY CATEGORY
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+        <FadeIn y={30}>
+          <h2 className="text-center text-2xl font-bold mb-12 tracking-widest">
+            SHOP BY CATEGORY
+          </h2>
+        </FadeIn>
+        <StaggerChildren
+          stagger={0.1}
+          y={30}
+          className="grid grid-cols-2 md:grid-cols-5 gap-6"
+        >
           {categories?.map((cat) => (
             <Link
               key={cat.id}
@@ -87,14 +72,17 @@ export default async function HomePage() {
               <p className="text-sm font-semibold tracking-wider">{cat.name}</p>
             </Link>
           ))}
-        </div>
+        </StaggerChildren>
       </section>
 
       {/* Best Sellers */}
       <section className="max-w-7xl mx-auto px-4 py-16 bg-white">
-        <h2 className="text-center text-2xl font-bold mb-12 tracking-widest">
-          BEST SELLERS
-        </h2>
+        <FadeIn y={30}>
+          <h2 className="text-center text-2xl font-bold mb-12 tracking-widest">
+            BEST SELLERS
+          </h2>
+        </FadeIn>
+
         <ProductGrid products={bestSellers || []} />
       </section>
     </div>

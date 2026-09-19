@@ -14,6 +14,7 @@ const productSchema = z.object({
   name: z.string().min(2),
   slug: z.string().min(2),
   category_id: z.string().uuid(),
+  gender: z.enum(["men", "women", "unisex"]).default("unisex"),
   short_description: z.string().default(""),
   description: z.string().default(""),
   brand: z.string().default(""),
@@ -105,6 +106,7 @@ export default function ProductForm({
       name: initialData?.name ?? "",
       slug: initialData?.slug ?? "",
       category_id: initialData?.category_id ?? "",
+      gender: initialData?.gender ?? "unisex",
       short_description: initialData?.short_description ?? "",
       description: initialData?.description ?? "",
       brand: initialData?.brand ?? "",
@@ -274,6 +276,22 @@ export default function ProductForm({
                 {errors.category_id.message}
               </p>
             )}
+          </div>
+
+          {/* ⭐ NEW: Gender */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Gender</label>
+            <select
+              {...register("gender")}
+              className="w-full border p-3 rounded-md bg-white"
+            >
+              <option value="unisex">Unisex (show in all)</option>
+              <option value="men">Men only</option>
+              <option value="women">Women only</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Unisex products appear in both MEN and WOMEN collections
+            </p>
           </div>
 
           <div>

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { CheckCircle } from "lucide-react";
+import RelatedProducts from "@/components/products/related-products";
 
 export default async function CheckoutSuccessPage({
   searchParams,
@@ -63,6 +64,12 @@ export default async function CheckoutSuccessPage({
           href="/products"
           className="inline-block bg-black text-white px-8 py-3 text-sm tracking-widest hover:bg-gray-800 transition"
         >
+          <RelatedProducts
+            productId="00000000-0000-0000-0000-000000000000"
+            categoryId={null}
+            gender={null}
+            limit={4}
+          />
           CONTINUE SHOPPING
         </Link>
         <Link href={`/track-order?order=${orderNumber}`}>Track this order</Link>

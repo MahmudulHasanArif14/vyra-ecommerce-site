@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import OrganizationJsonLd from "@/components/seo/organization-json-ld";
 import { CartProvider } from "@/hooks/use-cart";
 import { config } from "@fortawesome/fontawesome-svg-core";
 import "@fortawesome/fontawesome-svg-core/styles.css";
@@ -7,6 +8,7 @@ import { Toaster } from "sonner";
 import PageTracker from "@/components/analytics/page-tracker";
 import "./globals.css";
 import FloatingShopButton from "@/components/layout/floating-shop-button";
+import SmoothScroll from "@/components/animation/smooth-scroll";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,10 +39,13 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <PageTracker />
-        <Toaster position="top-right" />
-        <CartProvider>{children}</CartProvider>
-        <FloatingShopButton />
+        <SmoothScroll>
+          <OrganizationJsonLd />
+          <PageTracker />
+          <Toaster position="top-right" />
+          <CartProvider>{children}</CartProvider>
+          <FloatingShopButton />
+        </SmoothScroll>
       </body>
     </html>
   );

@@ -7,6 +7,7 @@ import {
 } from "@fortawesome/free-brands-svg-icons";
 import NewsletterForm from "./newsletter-form";
 import { getSettings } from "@/lib/settings";
+import FadeIn from "../animation/fade-in";
 
 export default async function Footer() {
   const settings = await getSettings();
@@ -204,15 +205,17 @@ export default async function Footer() {
       {/* 3. Giant brand name */}
       {/* ============================================================ */}
       <section className="border-t overflow-hidden">
-        <h2
-          className="text-center font-bold text-black select-none tracking-[-0.02em] leading-[0.8] py-8"
-          style={{
-            fontSize: "clamp(4rem, 18vw, 20rem)",
-            fontFamily: "Georgia, serif",
-          }}
-        >
-          {brandWord}
-        </h2>
+        <FadeIn y={60} duration={1.1}>
+          <h2
+            className="text-center font-bold text-black select-none tracking-[-0.02em] leading-[0.8] py-8"
+            style={{
+              fontSize: "clamp(4rem, 18vw, 20rem)",
+              fontFamily: "Georgia, serif",
+            }}
+          >
+            {brandWord}
+          </h2>
+        </FadeIn>
       </section>
 
       {/* ============================================================ */}
