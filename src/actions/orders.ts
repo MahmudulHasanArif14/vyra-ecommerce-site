@@ -6,6 +6,12 @@ import { checkoutSchema } from "@/validations/checkout";
 import { validateCoupon } from "@/actions/coupons";
 import { getSetting, getNumber } from "@/lib/settings";
 
+import { after } from "next/server";
+import {
+  sendOrderConfirmation,
+  sendAdminOrderNotification,
+} from "@/lib/email/send";
+
 type OrderItemInput = {
   variantId: string;
   quantity: number;
@@ -213,6 +219,47 @@ export async function createOrder(input: CreateOrderInput) {
   // 10. Clear Cart Cookie
   // ============================================================
   cookieStore.delete("vyra_cart");
+
+  const emailItems = orderItemsToInsert.map((item) => ({
+    product_name: item.product_name,
+    variant_name: item.variant_name || null,
+    quantity: item.quantity,
+    unit_price: item.unit_price,
+    line_total: item.line_total,
+  }));
+
+  after(async () => {
+    try {
+      await sendOrderConfirmation({
+        orderNumber,
+        customerEmail: customer.email,
+        customerName: customer.fullName,
+        items: emailItems,
+        subtotal,
+        deliveryFee,
+        discount,
+        total,
+        address: {
+          full_name: customer.fullName,
+          phone: customer.phone,
+          address_line1: customer.addressLine1,
+          city: customer.city,
+          postal_code: customer.postalCode || null,
+        },
+      });
+
+      await sendAdminOrderNotification({
+        orderNumber,
+        customerName: customer.fullName,
+        customerEmail: customer.email,
+        customerPhone: customer.phone,
+        total,
+        itemCount: orderItemsToInsert.length,
+      });
+    } catch (err) {
+      console.error("[createOrder] Background email failed:", err);
+    }
+  });
 
   return {
     success: true,

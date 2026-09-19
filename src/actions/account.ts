@@ -150,15 +150,26 @@ export async function cancelOrder(orderId: string) {
   }
 
   // Update status
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from("orders")
     .update({
       status: "cancelled",
       updated_at: new Date().toISOString(),
     })
-    .eq("id", orderId);
+    .eq("id", orderId)
+    .eq("user_id", user.id)
+    .select("id, status") // ⭐ request the updated row back
+    .single();
 
-  if (updateError) return { success: false, error: updateError.message };
+  if (updateError) {
+    console.error("[cancelOrder] update error:", updateError);
+    return { success: false, error: updateError.message };
+  }
+
+  if (!updated) {
+    console.error("[cancelOrder] no rows updated — RLS likely blocked it");
+    return { success: false, error: "Update blocked. Please contact support." };
+  }
 
   // Restore stock for each order item
   const { data: items } = await supabase
@@ -177,6 +188,11 @@ export async function cancelOrder(orderId: string) {
 
   revalidatePath("/account");
   revalidatePath("/account/orders");
+  revalidatePath("/account/orders/[orderNumber]", "page");
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin/inventory");
+  revalidatePath("/");
+
   revalidatePath(`/account/orders/${orderId}`);
   return { success: true };
 }

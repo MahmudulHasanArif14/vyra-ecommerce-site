@@ -61,7 +61,7 @@ export default async function OrderDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  if (!user) redirect("/login?redirect=/account/orders");
 
   const { orderNumber } = await params;
 
@@ -151,6 +151,7 @@ export default async function OrderDetailPage({
               <CancelOrderButton
                 orderId={order.id}
                 orderNumber={order.order_number}
+                redirectTo="/account/orders"
               />
             )}
           </div>

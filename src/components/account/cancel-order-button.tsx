@@ -9,9 +9,11 @@ import { useRouter } from "next/navigation";
 export default function CancelOrderButton({
   orderId,
   orderNumber,
+  redirectTo,
 }: {
   orderId: string;
   orderNumber: string;
+  redirectTo?: string;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -23,7 +25,13 @@ export default function CancelOrderButton({
       if (result.success) {
         toast.success(`${orderNumber} cancelled`);
         setConfirming(false);
-        router.refresh();
+        if (redirectTo) {
+          router.push(redirectTo);
+          router.refresh();
+        } else {
+          router.refresh();
+          setTimeout(() => router.refresh(), 100);
+        }
       } else {
         toast.error(result.error || "Failed to cancel");
         setConfirming(false);

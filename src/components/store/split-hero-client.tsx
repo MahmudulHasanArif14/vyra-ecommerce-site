@@ -55,7 +55,7 @@ export default function SplitHeroClient({
   }, []);
 
   return (
-    <section className="grid grid-cols-1 md:grid-cols-2 min-h-[60vh] md:min-h-[85vh]">
+    <section className="pt-0.1 grid grid-cols-1 md:grid-cols-2 h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)]">
       {/* MEN */}
       <Link href={menUrl} className="relative group overflow-hidden block">
         <div className="absolute inset-0" data-hero-image>
@@ -64,7 +64,7 @@ export default function SplitHeroClient({
             alt="Men's collection"
             fill
             sizes="(max-width: 768px) 100vw, 50vw"
-            className="object-cover transition-transform duration-[900ms] group-hover:scale-105"
+            className="object-cover object-[center_25%] transition-transform duration-900 group-hover:scale-105 "
             priority
           />
         </div>
@@ -100,7 +100,7 @@ export default function SplitHeroClient({
             alt="Women's collection"
             fill
             sizes="(max-width: 768px) 100vw, 50vw"
-            className="object-cover transition-transform duration-[900ms] group-hover:scale-105"
+            className="object-cover object-[center_30%] transition-transform duration-900 group-hover:scale-105"
             priority
           />
         </div>
