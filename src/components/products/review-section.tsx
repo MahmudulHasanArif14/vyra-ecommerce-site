@@ -16,26 +16,116 @@ export default async function ReviewSection({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Approved reviews
-  const { data: reviews } = await supabase
+  // ============================================================
+  // 1. Fetch approved reviews (no nested joins)
+  // ============================================================
+  const { data: reviewsBase, error: reviewsError } = await supabase
     .from("reviews")
     .select(
-      `
-      id, rating, title, comment, is_verified_purchase, created_at,
-      profiles:user_id (full_name, avatar_url)
-    `,
+      "id, rating, title, comment, is_verified_purchase, user_id, created_at",
     )
     .eq("product_id", productId)
     .eq("is_approved", true)
     .order("created_at", { ascending: false });
 
-  // Aggregate rating
+  console.log(
+    "[ReviewSection] reviews fetched:",
+    reviewsBase?.length,
+    "error:",
+    reviewsError?.message,
+  );
+
+  const reviewIds = (reviewsBase || []).map((r) => r.id);
+  const userIds = Array.from(
+    new Set((reviewsBase || []).map((r) => r.user_id)),
+  );
+
+  // ============================================================
+  // 2. Fetch reviewer profiles
+  // ============================================================
+  let profiles: any[] = [];
+  if (userIds.length > 0) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url")
+      .in("id", userIds);
+    profiles = data || [];
+  }
+  const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+  // ============================================================
+  // 3. Fetch images for those reviews
+  // ============================================================
+  let images: any[] = [];
+  if (reviewIds.length > 0) {
+    const { data, error: imgErr } = await supabase
+      .from("review_images")
+      .select("id, review_id, image_url, sort_order")
+      .in("review_id", reviewIds)
+      .order("sort_order");
+
+    if (imgErr) {
+      console.log("[ReviewSection] images fetch error:", imgErr.message);
+    }
+    images = data || [];
+  }
+
+  // ============================================================
+  // 4. Fetch replies for those reviews
+  // ============================================================
+  let replies: any[] = [];
+  if (reviewIds.length > 0) {
+    const { data, error: repErr } = await supabase
+      .from("review_replies")
+      .select("id, review_id, reply, is_admin_reply, created_at, user_id")
+      .in("review_id", reviewIds)
+      .eq("is_visible", true)
+      .order("created_at", { ascending: true });
+
+    if (repErr) {
+      console.log("[ReviewSection] replies fetch error:", repErr.message);
+    }
+    replies = data || [];
+  }
+
+  // Fetch reply author profiles
+  const replyUserIds = Array.from(
+    new Set(replies.map((r) => r.user_id).filter(Boolean)),
+  );
+  let replyProfiles: any[] = [];
+  if (replyUserIds.length > 0) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url")
+      .in("id", replyUserIds);
+    replyProfiles = data || [];
+  }
+  const replyProfileMap = new Map(replyProfiles.map((p) => [p.id, p]));
+
+  // ============================================================
+  // 5. Assemble
+  // ============================================================
+  const reviews = (reviewsBase || []).map((r) => ({
+    ...r,
+    profiles: profileMap.get(r.user_id) || null,
+    review_images: images.filter((i) => i.review_id === r.id),
+    review_replies: replies
+      .filter((rp) => rp.review_id === r.id)
+      .map((rp) => ({
+        ...rp,
+        profiles: replyProfileMap.get(rp.user_id) || null,
+      })),
+  }));
+
+  // ============================================================
+  // 6. Rating summary
+  // ============================================================
   const { average, count, distribution } = await getProductRating(productId);
 
-  // Did this user already review?
+  // ============================================================
+  // 7. Can this user review?
+  // ============================================================
   let userReview: any = null;
-  let canReview = false;
-
   if (user) {
     const { data: existing } = await supabase
       .from("reviews")
@@ -43,19 +133,7 @@ export default async function ReviewSection({
       .eq("product_id", productId)
       .eq("user_id", user.id)
       .maybeSingle();
-
     userReview = existing;
-
-    // Check if the user has ever ordered this product (so we can show "verified" hint)
-    if (!existing) {
-      const { count: purchasedCount } = await supabase
-        .from("order_items")
-        .select("id, orders!inner(user_id)", { count: "exact", head: true })
-        .eq("product_id", productId)
-        .eq("orders.user_id", user.id);
-
-      canReview = true; // allow review regardless of purchase
-    }
   }
 
   return (
@@ -85,7 +163,6 @@ export default async function ReviewSection({
               {count} review{count !== 1 ? "s" : ""}
             </p>
 
-            {/* Distribution bars */}
             {count > 0 && (
               <div className="mt-4 space-y-1">
                 {[5, 4, 3, 2, 1].map((stars) => {
@@ -113,7 +190,6 @@ export default async function ReviewSection({
             )}
           </div>
 
-          {/* Write a review */}
           {!user ? (
             <div className="mt-4 text-sm text-gray-500 text-center">
               <a href="/login" className="text-black underline">
@@ -125,16 +201,15 @@ export default async function ReviewSection({
             <div className="mt-4 text-sm text-green-700 text-center bg-green-50 border border-green-200 rounded-md p-3">
               ✓ Your review is published
             </div>
-          ) : canReview ? (
+          ) : (
             <div className="mt-4">
               <ReviewForm productId={productId} productSlug={productSlug} />
             </div>
-          ) : null}
+          )}
         </div>
 
-        {/* Reviews list */}
         <div className="md:col-span-2">
-          <ReviewList reviews={reviews || []} />
+          <ReviewList reviews={reviews} showMoreButton={true} />
         </div>
       </div>
     </section>

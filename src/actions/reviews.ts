@@ -25,8 +25,56 @@ const reviewSchema = z.object({
 });
 
 /**
- * Submit a review for a product. Users must be signed in.
- * If they've purchased the product, `is_verified_purchase` is set automatically by a DB trigger.
+ * ⭐ NEW: Upload a review image to storage.
+ * Returns the public URL for the uploaded file.
+ */
+export async function uploadReviewImage(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, error: "Please sign in to upload images" };
+  }
+
+  const file = formData.get("file") as File;
+  if (!file) {
+    return { success: false, error: "No file provided" };
+  }
+
+  // Validate file type
+  const allowed = ["image/jpeg", "image/png", "image/webp"];
+  if (!allowed.includes(file.type)) {
+    return { success: false, error: "Only JPG, PNG, WEBP allowed" };
+  }
+
+  // Validate file size (5MB max)
+  if (file.size > 5 * 1024 * 1024) {
+    return { success: false, error: "File must be under 5MB" };
+  }
+
+  const ext = file.name.split(".").pop() || "jpg";
+  const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("review-images")
+    .upload(path, file);
+
+  if (uploadError) {
+    console.error("Review image upload error:", uploadError);
+    return { success: false, error: uploadError.message };
+  }
+
+  const { data: urlData } = supabase.storage
+    .from("review-images")
+    .getPublicUrl(path);
+
+  return { success: true, url: urlData.publicUrl, path };
+}
+
+/**
+ * ⭐ UPDATED: Submit a review with optional images.
  */
 export async function submitReview(formData: FormData) {
   const supabase = await createClient();
@@ -34,8 +82,9 @@ export async function submitReview(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user)
+  if (!user) {
     return { success: false, error: "Please sign in to write a review" };
+  }
 
   const parsed = reviewSchema.safeParse({
     product_id: formData.get("product_id"),
@@ -48,14 +97,29 @@ export async function submitReview(formData: FormData) {
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { error } = await supabase.from("reviews").insert({
-    product_id: parsed.data.product_id,
-    user_id: user.id,
-    rating: parsed.data.rating,
-    title: parsed.data.title || null,
-    comment: parsed.data.comment,
-    is_approved: true, // requires admin approval
-  });
+  // ⭐ Parse uploaded image URLs from FormData
+  const imageUrls: string[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (key.startsWith("image_url_") && typeof value === "string" && value) {
+      imageUrls.push(value);
+    }
+  }
+
+  console.log("[submitReview] received", imageUrls.length, "images");
+
+  // 1. Insert the review
+  const { data: review, error } = await supabase
+    .from("reviews")
+    .insert({
+      product_id: parsed.data.product_id,
+      user_id: user.id,
+      rating: parsed.data.rating,
+      title: parsed.data.title || null,
+      comment: parsed.data.comment,
+      is_approved: true,
+    })
+    .select()
+    .single();
 
   if (error) {
     if (error.code === "23505") {
@@ -68,13 +132,32 @@ export async function submitReview(formData: FormData) {
     return { success: false, error: "Failed to submit review" };
   }
 
+  // 2. ⭐ Insert review images (if any)
+  if (imageUrls.length > 0) {
+    const { error: imgError } = await supabase.from("review_images").insert(
+      imageUrls.map((url, i) => ({
+        review_id: review.id,
+        image_url: url,
+        sort_order: i,
+      })),
+    );
+
+    if (imgError) {
+      console.error("Review image insert error:", imgError);
+      // Don't fail the whole submission — the review is already saved
+      // The images just won't be attached
+    } else {
+      console.log("[submitReview] inserted", imageUrls.length, "images");
+    }
+  }
+
   revalidatePath("/account/reviews");
   revalidatePath(`/products/${formData.get("product_slug")}`);
   return { success: true };
 }
 
 /**
- * Update a user's own review (edits put it back into pending state).
+ * Update a user's own review.
  */
 export async function updateMyReview(
   reviewId: string,
@@ -107,7 +190,7 @@ export async function updateMyReview(
       rating: formData.rating,
       title: formData.title || null,
       comment: formData.comment,
-      is_approved: true, // re-moderate after edit
+      is_approved: true,
       updated_at: new Date().toISOString(),
     })
     .eq("id", reviewId)
@@ -166,7 +249,7 @@ export async function approveReview(reviewId: string) {
 }
 
 /**
- * Admin: unapprove a review (hide it from storefront).
+ * Admin: unapprove a review.
  */
 export async function unapproveReview(reviewId: string) {
   const authError = await checkAdmin();
@@ -186,7 +269,7 @@ export async function unapproveReview(reviewId: string) {
 }
 
 /**
- * Admin: delete a review entirely.
+ * Admin: delete a review.
  */
 export async function deleteReview(reviewId: string) {
   const authError = await checkAdmin();
@@ -203,7 +286,7 @@ export async function deleteReview(reviewId: string) {
 }
 
 /**
- * Get aggregate rating + count for a product (approved reviews only).
+ * Get aggregate rating + count for a product.
  */
 export async function getProductRating(productId: string) {
   const supabase = await createClient();
@@ -222,7 +305,6 @@ export async function getProductRating(productId: string) {
   const sum = ratings.reduce((a, b) => a + b, 0);
   const average = sum / ratings.length;
 
-  // Distribution: index 0 = 1 star, index 4 = 5 stars
   const distribution = [0, 0, 0, 0, 0];
   ratings.forEach((r) => {
     distribution[r - 1]++;

@@ -11,22 +11,62 @@ export default async function AdminReviewsPage({
   const supabase = await createClient();
   const { filter } = await searchParams;
 
-  let query = await supabase
+  // Build filter
+  let query = supabase
     .from("reviews")
     .select(
       `
-    *,
-    products (id, name, slug),
-    profiles:user_id (full_name, email, avatar_url),
-    review_replies (
-      id, reply, is_admin_reply, is_visible, created_at,
-      profiles:user_id (full_name)
-    )
-  `,
+      id, rating, title, comment, is_approved, is_verified_purchase,
+      created_at, user_id, product_id,
+      products (id, name, slug)
+    `,
     )
     .order("created_at", { ascending: false });
 
-  const { data: reviews } = await query;
+  if (filter === "pending") query = query.eq("is_approved", false);
+  if (filter === "approved") query = query.eq("is_approved", true);
+
+  const { data: reviewsBase, error } = await query;
+
+  if (error) {
+    console.error("[AdminReviews] query error:", error);
+  }
+
+  const reviewIds = (reviewsBase || []).map((r) => r.id);
+  const userIds = Array.from(
+    new Set((reviewsBase || []).map((r) => r.user_id)),
+  );
+
+  // Fetch reviewer profiles
+  let profiles: any[] = [];
+  if (userIds.length > 0) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, avatar_url")
+      .in("id", userIds);
+    profiles = data || [];
+  }
+  const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+  // Fetch replies for these reviews
+  let replies: any[] = [];
+  if (reviewIds.length > 0) {
+    const { data } = await supabase
+      .from("review_replies")
+      .select(
+        "id, review_id, reply, is_admin_reply, is_visible, created_at, user_id",
+      )
+      .in("review_id", reviewIds)
+      .order("created_at", { ascending: true });
+    replies = data || [];
+  }
+
+  // Assemble
+  const reviews = (reviewsBase || []).map((r) => ({
+    ...r,
+    profiles: profileMap.get(r.user_id) || null,
+    review_replies: replies.filter((rp) => rp.review_id === r.id),
+  }));
 
   // Stats
   const { count: totalCount } = await supabase
@@ -48,7 +88,7 @@ export default async function AdminReviewsPage({
       <div>
         <h1 className="text-3xl font-bold">Reviews</h1>
         <p className="text-gray-500 mt-1">
-          Moderate customer reviews before they appear on the storefront
+          Moderate reviews and reply publicly as VYRA Team
         </p>
       </div>
 
@@ -97,7 +137,7 @@ export default async function AdminReviewsPage({
         </Link>
       </div>
 
-      <ReviewModerationTable reviews={reviews || []} />
+      <ReviewModerationTable reviews={reviews as any} />
     </div>
   );
 }

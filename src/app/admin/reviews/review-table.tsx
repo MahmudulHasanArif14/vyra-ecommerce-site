@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Star,
@@ -35,7 +34,6 @@ type Reply = {
   is_admin_reply: boolean;
   is_visible: boolean;
   created_at: string;
-  profiles: { full_name: string | null } | null;
 };
 
 type Review = {
@@ -220,6 +218,7 @@ export default function ReviewModerationTable({
                 </p>
               </div>
 
+              {/* Actions */}
               <div className="flex items-center gap-2 shrink-0">
                 {!review.is_approved ? (
                   <button
@@ -241,6 +240,7 @@ export default function ReviewModerationTable({
                   </button>
                 )}
 
+                {/* ⭐ REPLY BUTTON */}
                 <button
                   onClick={() =>
                     setReplyingTo(replyingTo === review.id ? null : review.id)
@@ -333,6 +333,7 @@ export default function ReviewModerationTable({
                 rows={3}
                 placeholder="Thank you for your feedback..."
                 className="w-full border p-3 rounded-md text-sm bg-white"
+                autoFocus
               />
               <div className="flex gap-2">
                 <button
